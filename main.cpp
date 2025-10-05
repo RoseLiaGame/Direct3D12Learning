@@ -61,7 +61,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	MSG msg;
 	while (true) {
-		// 可以吧内存置于0
+		// 可以把内存置于0
 		ZeroMemory(&msg, sizeof(MSG));
 		// 大系统中不可以这样用，会导致系统很卡，因为消息处理不及时
 		if (PeekMessage(&msg,NULL,0,0,PM_REMOVE)) {

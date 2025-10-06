@@ -1,7 +1,53 @@
 #include <windows.h>
-
+#include <d3d12.h>
+#include <dxgi1_4.h>
+#pragma comment(lib,"d3d12.lib")
+#pragma comment(lib,"dxgi.lib")
 
 LPCTSTR gWindowsClassName = L"BattleFire";//ASCII
+ID3D12Device* gD3D12Device = nullptr;
+bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
+	HRESULT hResult;
+	UINT dxgiFactoryFlags = 0;
+#ifdef _DEBUG
+	// 启用调试层
+	ID3D12Debug* debugController = nullptr;
+	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
+	debugController->EnableDebugLayer();
+	// 之后创建DXGI工厂时需要使用这个标志
+	dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+	}
+#endif
+	IDXGIFactory4* dxgiFactory;
+	hResult = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&dxgiFactory));
+	if (FAILED(hResult)) {
+		return false;
+	}
+	IDXGIAdapter1* adapter;
+	int adapterIndex = 0;
+	bool adapterFound = false;
+	while (dxgiFactory->EnumAdapters1(adapterIndex,&adapter)!=DXGI_ERROR_NOT_FOUND) {
+		DXGI_ADAPTER_DESC1 desc;
+		adapter->GetDesc1(&desc);
+		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+			continue;
+		}
+		hResult = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr);
+		if (SUCCEEDED(hResult)) {
+			adapterFound = true;
+			break;
+		}
+		adapterIndex++;
+	}
+	if (false == adapterFound) {
+		return false;
+	}
+	hResult = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&gD3D12Device));
+	if(FAILED(hResult)) {
+		return false;
+	}
+	return true;
+}
 LRESULT CALLBACK WindowProc(HWND inHWND, UINT inMSG, WPARAM inWParam, LPARAM inLParam){
 	switch (inMSG) {
 	case WM_CLOSE:
@@ -56,6 +102,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return -1;
 	}
 	// 显示show
+	InitD3D12(hwnd, 1280, 720);
 	ShowWindow(hwnd, inShowCmd);
 	UpdateWindow(hwnd);
 

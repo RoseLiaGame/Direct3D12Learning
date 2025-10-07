@@ -6,6 +6,8 @@
 
 LPCTSTR gWindowsClassName = L"BattleFire";//ASCII
 ID3D12Device* gD3D12Device = nullptr;
+ID3D12CommandQueue* gCommandQueue = nullptr;
+IDXGISwapChain3* gSwapChain = nullptr;
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	HRESULT hResult;
 	UINT dxgiFactoryFlags = 0;
@@ -46,6 +48,29 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	if(FAILED(hResult)) {
 		return false;
 	}
+	// 创建命令队列
+	D3D12_COMMAND_QUEUE_DESC d3d12CommandQueueDesc = {};
+	hResult = gD3D12Device->CreateCommandQueue(&d3d12CommandQueueDesc, IID_PPV_ARGS(&gCommandQueue));
+	if (FAILED(hResult)) {
+		return false;
+	}
+	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+	swapChainDesc.BufferCount = 2;
+	swapChainDesc.BufferDesc = {};
+	swapChainDesc.BufferDesc.Width = inWidth;
+	swapChainDesc.BufferDesc.Height = inHeight;
+	swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.OutputWindow = inHWND;
+	swapChainDesc.SampleDesc.Count = 1;
+	swapChainDesc.Windowed = true;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+
+	IDXGISwapChain* swapChain = nullptr;
+	dxgiFactory->CreateSwapChain(gCommandQueue, &swapChainDesc, &swapChain);
+	gSwapChain = static_cast<IDXGISwapChain3*>(swapChain);
+
+
 	return true;
 }
 LRESULT CALLBACK WindowProc(HWND inHWND, UINT inMSG, WPARAM inWParam, LPARAM inLParam){

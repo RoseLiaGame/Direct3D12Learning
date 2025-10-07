@@ -8,6 +8,7 @@ LPCTSTR gWindowsClassName = L"BattleFire";//ASCII
 ID3D12Device* gD3D12Device = nullptr;
 ID3D12CommandQueue* gCommandQueue = nullptr;
 IDXGISwapChain3* gSwapChain = nullptr;
+ID3D12Resource* gDSRT = nullptr;
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	HRESULT hResult;
 	UINT dxgiFactoryFlags = 0;
@@ -70,6 +71,33 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	dxgiFactory->CreateSwapChain(gCommandQueue, &swapChainDesc, &swapChain);
 	gSwapChain = static_cast<IDXGISwapChain3*>(swapChain);
 
+	// 创建深度缓冲（这里没有用Depth命名是因为Resource这段代码之后会被抽象）
+	D3D12_HEAP_PROPERTIES d3dHeapProperties = {};
+	d3dHeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC d3d12ResourceDesc = {};
+	d3d12ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	d3d12ResourceDesc.Alignment = 0;
+	d3d12ResourceDesc.Width = inWidth;
+	d3d12ResourceDesc.Height = inHeight;
+	d3d12ResourceDesc.DepthOrArraySize = 1;
+	d3d12ResourceDesc.MipLevels = 0;
+	d3d12ResourceDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	d3d12ResourceDesc.SampleDesc.Count = 1;
+	d3d12ResourceDesc.SampleDesc.Quality = 0;
+	d3d12ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	d3d12ResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL; 
+	
+	D3D12_CLEAR_VALUE dsClearValue = {};
+	dsClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	dsClearValue.DepthStencil.Depth = 1.0f;
+	dsClearValue.DepthStencil.Stencil = 0;
+	gD3D12Device->CreateCommittedResource(&d3dHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&d3d12ResourceDesc,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&dsClearValue,
+		IID_PPV_ARGS(&gDSRT)
+	);
 
 	return true;
 }

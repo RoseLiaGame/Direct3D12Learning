@@ -8,7 +8,11 @@ LPCTSTR gWindowsClassName = L"BattleFire";//ASCII
 ID3D12Device* gD3D12Device = nullptr;
 ID3D12CommandQueue* gCommandQueue = nullptr;
 IDXGISwapChain3* gSwapChain = nullptr;
-ID3D12Resource* gDSRT = nullptr;
+ID3D12Resource* gDSRT = nullptr, *gColorRTs[2];
+ID3D12DescriptorHeap* gSwapChainRTVHeap = nullptr;
+ID3D12DescriptorHeap* gSwapChainDSVHeap = nullptr;
+UINT gRTVDescriptorSize = 0;
+UINT gDSVDescriptorSize = 0;
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	HRESULT hResult;
 	UINT dxgiFactoryFlags = 0;
@@ -98,6 +102,30 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 		&dsClearValue,
 		IID_PPV_ARGS(&gDSRT)
 	);
+
+	// RTV,DSV
+	D3D12_DESCRIPTOR_HEAP_DESC d3dDescriptorHeapDescRTV = {};
+	d3dDescriptorHeapDescRTV.NumDescriptors = 2;
+	d3dDescriptorHeapDescRTV.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	gD3D12Device->CreateDescriptorHeap(&d3dDescriptorHeapDescRTV,IID_PPV_ARGS(&gSwapChainRTVHeap));
+	gRTVDescriptorSize = gD3D12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	D3D12_DESCRIPTOR_HEAP_DESC d3dDescriptorHeapDescDSV = {};
+	d3dDescriptorHeapDescDSV.NumDescriptors = 1;
+	d3dDescriptorHeapDescDSV.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	gD3D12Device->CreateDescriptorHeap(&d3dDescriptorHeapDescDSV, IID_PPV_ARGS(&gSwapChainDSVHeap));
+	gDSVDescriptorSize = gD3D12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHeapStart = gSwapChainRTVHeap->GetCPUDescriptorHandleForHeapStart();
+	for (UINT i = 0; i < 2; i++) {
+		gSwapChain->GetBuffer(i, IID_PPV_ARGS(&gColorRTs[i]));
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvPointer;
+		rtvPointer.ptr = rtvHeapStart.ptr + i * gRTVDescriptorSize;
+		gD3D12Device->CreateRenderTargetView(gColorRTs[i], nullptr, rtvPointer);
+	}
+	D3D12_DEPTH_STENCIL_VIEW_DESC d3dDSViewDesc = {};
+	d3dDSViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	d3dDSViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	gD3D12Device->CreateDepthStencilView(gDSRT, &d3dDSViewDesc, gSwapChainDSVHeap->GetCPUDescriptorHandleForHeapStart());
 
 	return true;
 }

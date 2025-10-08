@@ -13,6 +13,11 @@ ID3D12DescriptorHeap* gSwapChainRTVHeap = nullptr;
 ID3D12DescriptorHeap* gSwapChainDSVHeap = nullptr;
 UINT gRTVDescriptorSize = 0;
 UINT gDSVDescriptorSize = 0;
+ID3D12CommandAllocator* gCommandAllocator = nullptr;
+ID3D12CommandList* gCommandList = nullptr;
+ID3D12Fence* gFence = nullptr;
+HANDLE gFenceEvent = nullptr;
+UINT64 gFenceValue = 0;
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	HRESULT hResult;
 	UINT dxgiFactoryFlags = 0;
@@ -127,8 +132,29 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	d3dDSViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 	gD3D12Device->CreateDepthStencilView(gDSRT, &d3dDSViewDesc, gSwapChainDSVHeap->GetCPUDescriptorHandleForHeapStart());
 
+	// 完成渲染初始化（创建命令分配器）
+	gD3D12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&gCommandAllocator));
+	gD3D12Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, gCommandAllocator, nullptr, IID_PPV_ARGS(&gCommandList));
+
+	gD3D12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&gFence));
+	gFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	return true;
 }
+
+void WaitForCompletionOfCommandList() {
+	// 等待CommandList执行完毕
+	if (gFence->GetCompletedValue() < gFenceValue) {
+		gFence->SetEventOnCompletion(gFenceValue, gFenceEvent);
+		WaitForSingleObject(gFenceEvent, INFINITE);
+	}
+}
+
+void EndCommandList() {
+	// 执行CommandList
+	gFenceValue += 1;
+	gCommandQueue->Signal(gFence, gFenceValue);
+}
+
 LRESULT CALLBACK WindowProc(HWND inHWND, UINT inMSG, WPARAM inWParam, LPARAM inLParam){
 	switch (inMSG) {
 	case WM_CLOSE:

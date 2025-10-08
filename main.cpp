@@ -17,7 +17,7 @@ ID3D12DescriptorHeap* gSwapChainDSVHeap = nullptr;
 UINT gRTVDescriptorSize = 0;
 UINT gDSVDescriptorSize = 0;
 ID3D12CommandAllocator* gCommandAllocator = nullptr;
-ID3D12CommandList* gCommandList = nullptr;
+ID3D12GraphicsCommandList* gCommandList = nullptr;
 ID3D12Fence* gFence = nullptr;
 HANDLE gFenceEvent = nullptr;
 UINT64 gFenceValue = 0;
@@ -171,6 +171,9 @@ void WaitForCompletionOfCommandList() {
 }
 
 void EndCommandList() {
+	gCommandList->Close();// ¹Ø±ÕCommandList
+	ID3D12CommandList* ppComandLists[] = { gCommandList };
+	gCommandQueue->ExecuteCommandLists(1, ppComandLists);
 	// Ö´ĞĞCommandList
 	gFenceValue += 1;
 	gCommandQueue->Signal(gFence, gFenceValue);
@@ -179,6 +182,17 @@ void EndCommandList() {
 void BeginRenderTOSwapChain(ID3D12GraphicsCommandList* inCommandList) {
 	D3D12_RESOURCE_BARRIER barrier = InitResourceBarrier(gColorRTs[gCurrentRTIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	inCommandList->ResourceBarrier(1, &barrier);
+	D3D12_CPU_DESCRIPTOR_HANDLE colorRT,dsv;
+	dsv.ptr = gSwapChainDSVHeap->GetCPUDescriptorHandleForHeapStart().ptr;
+	colorRT.ptr = gSwapChainRTVHeap->GetCPUDescriptorHandleForHeapStart().ptr + gCurrentRTIndex * gRTVDescriptorSize;
+	inCommandList->OMSetRenderTargets(1, &colorRT, FALSE, &dsv);
+	D3D12_VIEWPORT viewport = { 0.0f,0.0f,1280.0f,720.0f };
+	D3D12_RECT scissorRect = { 0,0,1280,720 };
+	inCommandList->RSSetViewports(1, &viewport);
+	inCommandList->RSSetScissorRects(1, &scissorRect);
+	const float clearColor[] = { 0.847f,0.718f,0.867f,1.0f };
+	inCommandList->ClearRenderTargetView(colorRT, clearColor, 0, nullptr);
+	inCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0.0f, nullptr);
 }
 
 void EndRenderToSwapChain(ID3D12GraphicsCommandList* inCommandList) {
@@ -260,6 +274,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			DispatchMessage(&msg);
 		} else {
 			// rendering
+			WaitForCompletionOfCommandList();
+			gCommandAllocator->Reset();
+			gCommandList->Reset(gCommandAllocator, nullptr);
+			BeginRenderTOSwapChain(gCommandList);
+			//draw
+			EndRenderToSwapChain(gCommandList);
+			EndCommandList();
 			gSwapChain->Present(0, 0);
 		}
 	}

@@ -9,6 +9,9 @@ ID3D12Device* gD3D12Device = nullptr;
 ID3D12CommandQueue* gCommandQueue = nullptr;
 IDXGISwapChain3* gSwapChain = nullptr;
 ID3D12Resource* gDSRT = nullptr, *gColorRTs[2];
+
+int gCurrentRTIndex = 0;
+
 ID3D12DescriptorHeap* gSwapChainRTVHeap = nullptr;
 ID3D12DescriptorHeap* gSwapChainDSVHeap = nullptr;
 UINT gRTVDescriptorSize = 0;
@@ -18,6 +21,20 @@ ID3D12CommandList* gCommandList = nullptr;
 ID3D12Fence* gFence = nullptr;
 HANDLE gFenceEvent = nullptr;
 UINT64 gFenceValue = 0;
+// ³õÊ¼»¯×´Ì¬×ª»»
+D3D12_RESOURCE_BARRIER InitResourceBarrier(
+	ID3D12Resource* inResource, D3D12_RESOURCE_STATES inPrevState,
+	D3D12_RESOURCE_STATES inNextState) {
+	D3D12_RESOURCE_BARRIER d3d12ResourceBarrier;
+	memset(&d3d12ResourceBarrier, 0, sizeof(d3d12ResourceBarrier));
+	d3d12ResourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	d3d12ResourceBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	d3d12ResourceBarrier.Transition.pResource = inResource;
+	d3d12ResourceBarrier.Transition.StateBefore = inPrevState;
+	d3d12ResourceBarrier.Transition.StateAfter = inNextState;
+	d3d12ResourceBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	return d3d12ResourceBarrier;
+}
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	HRESULT hResult;
 	UINT dxgiFactoryFlags = 0;
@@ -138,6 +155,9 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 
 	gD3D12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&gFence));
 	gFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+
+	gCurrentRTIndex = gSwapChain->GetCurrentBackBufferIndex();
+
 	return true;
 }
 
@@ -147,12 +167,23 @@ void WaitForCompletionOfCommandList() {
 		gFence->SetEventOnCompletion(gFenceValue, gFenceEvent);
 		WaitForSingleObject(gFenceEvent, INFINITE);
 	}
+	gCurrentRTIndex = gSwapChain->GetCurrentBackBufferIndex();
 }
 
 void EndCommandList() {
 	// Ö´ĞĞCommandList
 	gFenceValue += 1;
 	gCommandQueue->Signal(gFence, gFenceValue);
+}
+
+void BeginRenderTOSwapChain(ID3D12GraphicsCommandList* inCommandList) {
+	D3D12_RESOURCE_BARRIER barrier = InitResourceBarrier(gColorRTs[gCurrentRTIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	inCommandList->ResourceBarrier(1, &barrier);
+}
+
+void EndRenderToSwapChain(ID3D12GraphicsCommandList* inCommandList) {
+	D3D12_RESOURCE_BARRIER barrier = InitResourceBarrier(gColorRTs[gCurrentRTIndex], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	inCommandList->ResourceBarrier(1, &barrier);
 }
 
 LRESULT CALLBACK WindowProc(HWND inHWND, UINT inMSG, WPARAM inWParam, LPARAM inLParam){
@@ -229,6 +260,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			DispatchMessage(&msg);
 		} else {
 			// rendering
+			gSwapChain->Present(0, 0);
 		}
 	}
 	return 0;

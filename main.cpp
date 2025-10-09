@@ -255,6 +255,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	// œ‘ æshow
 	InitD3D12(hwnd, 1280, 720);
+
+	float vertexData[] = {
+		-0.5f,-0.5f,0.0f,1.0f, // Position
+		1.0f,0.0f,0.0f,1.0f, // Color
+		0.0f,0.0f,0.0f,0.0f, // normal
+		0.0f,0.5f,0.5f,1.0f, // Position
+		0.0f,1.0f,0.0f,1.0f, // Color
+		0.0f,0.0f,0.0f,0.0f, // normal
+		0.5f,-0.5f,0.5f,1.0f, // Position
+		0.0f,0.0f,1.0f,1.0f, // Color
+		0.0f,0.0f,0.0f,0.0f // normal	
+	};
+
 	ShowWindow(hwnd, inShowCmd);
 	UpdateWindow(hwnd);
 

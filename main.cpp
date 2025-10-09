@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
+#include <d3dcompiler.h>
+#include <stdio.h>
 
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
@@ -22,6 +24,25 @@ ID3D12GraphicsCommandList* gCommandList = nullptr;
 ID3D12Fence* gFence = nullptr;
 HANDLE gFenceEvent = nullptr;
 UINT64 gFenceValue = 0;
+
+void CreateShaderFormFile(
+	LPCTSTR inShaderFilePath, 
+	const char* inMainFunctionName,
+	const char* inTarget, // "vs_5_0","ps_5_0"
+	D3D12_SHADER_BYTECODE *inShader) {
+	ID3DBlob* shaderBuffer = nullptr;
+	ID3DBlob* errorBuffer = nullptr;
+	HRESULT hResult = D3DCompileFromFile(inShaderFilePath, nullptr, nullptr,
+		inMainFunctionName, inTarget, D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
+		0, &shaderBuffer, &errorBuffer);
+	if (FAILED(hResult)) {
+		printf("CreateShaderFromFile error : [&s][&s]:[&s]\n", inMainFunctionName, inTarget, (char*)errorBuffer->GetBufferPointer());
+		errorBuffer->Release();
+		return;
+	}
+	inShader->pShaderBytecode = shaderBuffer->GetBufferPointer();
+	inShader->BytecodeLength = shaderBuffer->GetBufferSize();
+}
 
 // 创建缓冲区对象（初始化VBO）
 ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,

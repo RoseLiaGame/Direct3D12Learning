@@ -25,6 +25,21 @@ ID3D12Fence* gFence = nullptr;
 HANDLE gFenceEvent = nullptr;
 UINT64 gFenceValue = 0;
 
+// 初始化根签名
+ID3D12RootSignature* InitRootSignature() {
+	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	ID3DBlob* signature = nullptr;
+	HRESULT hResult = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, nullptr);
+	ID3D12RootSignature* d3d12RootSignature = nullptr;
+	gD3D12Device->CreateRootSignature(
+		0, signature->GetBufferPointer(), signature->GetBufferSize(),
+		IID_PPV_ARGS(&d3d12RootSignature));
+	return d3d12RootSignature;
+}
+
+// 编译shader
 void CreateShaderFormFile(
 	LPCTSTR inShaderFilePath, 
 	const char* inMainFunctionName,

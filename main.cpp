@@ -23,6 +23,68 @@ ID3D12Fence* gFence = nullptr;
 HANDLE gFenceEvent = nullptr;
 UINT64 gFenceValue = 0;
 
+// 创建缓冲区对象（初始化VBO）
+ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
+	void* inData, int inDataLen, D3D12_RESOURCE_STATES inFinalResourceState) {
+	D3D12_HEAP_PROPERTIES d3d12HeapProperties = {};
+	d3d12HeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;//GPU本地内存
+	D3D12_RESOURCE_DESC d3d12ResourceDesc = {};
+	d3d12ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	d3d12ResourceDesc.Alignment = 0;
+	d3d12ResourceDesc.Width = inDataLen;
+	d3d12ResourceDesc.Height = 1;
+	d3d12ResourceDesc.DepthOrArraySize = 1;
+	d3d12ResourceDesc.MipLevels = 1;
+	d3d12ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	d3d12ResourceDesc.SampleDesc.Count = 1;
+	d3d12ResourceDesc.SampleDesc.Quality = 0;
+	d3d12ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	d3d12ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	ID3D12Resource* bufferObject = nullptr;
+	gD3D12Device->CreateCommittedResource(
+		&d3d12HeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&d3d12ResourceDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&bufferObject)
+	);
+	d3d12ResourceDesc = bufferObject->GetDesc();
+	UINT64 memorySizeUsed = 0;
+	UINT64 rowSizeInBytes = 0;
+	UINT rowUsed = 0;
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresoutceFootprint;
+	gD3D12Device->GetCopyableFootprints(&d3d12ResourceDesc, 0, 1, 0,
+		&subresoutceFootprint, &rowUsed, &rowSizeInBytes, &memorySizeUsed);
+	// 3x4x4 = 48bytes分配48个字节，假如GPU每次读取数据室32个字节，48字节要存储2行，每行24字节每行后面有8字节不用（也可能其他处理方法）
+	// 申请临时缓存区
+	ID3D12Resource* tempBufferObject = nullptr;
+	d3d12HeapProperties = {};
+	d3d12HeapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;//CPU GPU可见内存
+	gD3D12Device->CreateCommittedResource(
+		&d3d12HeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&d3d12ResourceDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&tempBufferObject)
+	);
+
+	BYTE* pData;
+	tempBufferObject->Map(0, nullptr, reinterpret_cast<void**>(&pData));
+	BYTE* pDstTempBuffer = reinterpret_cast<BYTE*>(pData + subresoutceFootprint.Offset);
+	const BYTE* pSrcData = reinterpret_cast<BYTE*>(inData);
+	for (UINT i = 0; i < rowUsed; i++) {
+		memcpy(pDstTempBuffer + subresoutceFootprint.Footprint.RowPitch * i, pSrcData + rowSizeInBytes * i, rowSizeInBytes);
+	}
+	tempBufferObject->Unmap(0, nullptr);
+	inCommandList->CopyBufferRegion(bufferObject, 0, tempBufferObject, 0, subresoutceFootprint.Footprint.Width);
+	D3D12_RESOURCE_BARRIER barrier = InitResourceBarrier(bufferObject, D3D12_RESOURCE_STATE_COPY_DEST, inFinalResourceState);
+	inCommandList->ResourceBarrier(1, &barrier);
+	return bufferObject;
+}
+
 // 创建管线状态对象（PSO初始化）
 ID3D12PipelineState* CreatePSO(ID3D12RootSignature*inID3D12RootSignature,
 	D3D12_SHADER_BYTECODE inVertexShader,D3D12_SHADER_BYTECODE inPixelShader) {
@@ -90,6 +152,7 @@ D3D12_RESOURCE_BARRIER InitResourceBarrier(
 	d3d12ResourceBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 	return d3d12ResourceBarrier;
 }
+
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	HRESULT hResult;
 	UINT dxgiFactoryFlags = 0;
@@ -161,7 +224,7 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	d3d12ResourceDesc.Width = inWidth;
 	d3d12ResourceDesc.Height = inHeight;
 	d3d12ResourceDesc.DepthOrArraySize = 1;
-	d3d12ResourceDesc.MipLevels = 0;
+	d3d12ResourceDesc.MipLevels = 1;
 	d3d12ResourceDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	d3d12ResourceDesc.SampleDesc.Count = 1;
 	d3d12ResourceDesc.SampleDesc.Quality = 0;

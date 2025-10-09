@@ -6,6 +6,7 @@
 
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
+#pragma comment(lib,"d3dcompiler.lib")
 
 LPCTSTR gWindowsClassName = L"BattleFire";//ASCII
 ID3D12Device* gD3D12Device = nullptr;
@@ -24,6 +25,21 @@ ID3D12GraphicsCommandList* gCommandList = nullptr;
 ID3D12Fence* gFence = nullptr;
 HANDLE gFenceEvent = nullptr;
 UINT64 gFenceValue = 0;
+
+// 初始化状态转换
+D3D12_RESOURCE_BARRIER InitResourceBarrier(
+	ID3D12Resource* inResource, D3D12_RESOURCE_STATES inPrevState,
+	D3D12_RESOURCE_STATES inNextState) {
+	D3D12_RESOURCE_BARRIER d3d12ResourceBarrier;
+	memset(&d3d12ResourceBarrier, 0, sizeof(d3d12ResourceBarrier));
+	d3d12ResourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	d3d12ResourceBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	d3d12ResourceBarrier.Transition.pResource = inResource;
+	d3d12ResourceBarrier.Transition.StateBefore = inPrevState;
+	d3d12ResourceBarrier.Transition.StateAfter = inNextState;
+	d3d12ResourceBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	return d3d12ResourceBarrier;
+}
 
 // 初始化根签名
 ID3D12RootSignature* InitRootSignature() {
@@ -51,7 +67,7 @@ void CreateShaderFormFile(
 		inMainFunctionName, inTarget, D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
 		0, &shaderBuffer, &errorBuffer);
 	if (FAILED(hResult)) {
-		printf("CreateShaderFromFile error : [&s][&s]:[&s]\n", inMainFunctionName, inTarget, (char*)errorBuffer->GetBufferPointer());
+		printf("CreateShaderFromFile error : [%s][%s]:[%s]\n", inMainFunctionName, inTarget, (char*)errorBuffer->GetBufferPointer());
 		errorBuffer->Release();
 		return;
 	}
@@ -90,9 +106,9 @@ ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
 	UINT64 memorySizeUsed = 0;
 	UINT64 rowSizeInBytes = 0;
 	UINT rowUsed = 0;
-	D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresoutceFootprint;
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresourceFootprint;
 	gD3D12Device->GetCopyableFootprints(&d3d12ResourceDesc, 0, 1, 0,
-		&subresoutceFootprint, &rowUsed, &rowSizeInBytes, &memorySizeUsed);
+		&subresourceFootprint, &rowUsed, &rowSizeInBytes, &memorySizeUsed);
 	// 3x4x4 = 48bytes分配48个字节，假如GPU每次读取数据室32个字节，48字节要存储2行，每行24字节每行后面有8字节不用（也可能其他处理方法）
 	// 申请临时缓存区
 	ID3D12Resource* tempBufferObject = nullptr;
@@ -109,27 +125,26 @@ ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
 
 	BYTE* pData;
 	tempBufferObject->Map(0, nullptr, reinterpret_cast<void**>(&pData));
-	BYTE* pDstTempBuffer = reinterpret_cast<BYTE*>(pData + subresoutceFootprint.Offset);
+	BYTE* pDstTempBuffer = reinterpret_cast<BYTE*>(pData + subresourceFootprint.Offset);
 	const BYTE* pSrcData = reinterpret_cast<BYTE*>(inData);
 	for (UINT i = 0; i < rowUsed; i++) {
-		memcpy(pDstTempBuffer + subresoutceFootprint.Footprint.RowPitch * i, pSrcData + rowSizeInBytes * i, rowSizeInBytes);
+		memcpy(pDstTempBuffer + subresourceFootprint.Footprint.RowPitch * i, pSrcData + rowSizeInBytes * i, rowSizeInBytes);
 	}
 	tempBufferObject->Unmap(0, nullptr);
-	inCommandList->CopyBufferRegion(bufferObject, 0, tempBufferObject, 0, subresoutceFootprint.Footprint.Width);
+	inCommandList->CopyBufferRegion(bufferObject, 0, tempBufferObject, 0, subresourceFootprint.Footprint.Width);
 	D3D12_RESOURCE_BARRIER barrier = InitResourceBarrier(bufferObject, D3D12_RESOURCE_STATE_COPY_DEST, inFinalResourceState);
 	inCommandList->ResourceBarrier(1, &barrier);
 	return bufferObject;
 }
 
 // 创建管线状态对象（PSO初始化）
-ID3D12PipelineState* CreatePSO(ID3D12RootSignature*inID3D12RootSignature,
-	D3D12_SHADER_BYTECODE inVertexShader,D3D12_SHADER_BYTECODE inPixelShader) {
+ID3D12PipelineState* CreatePSO(ID3D12RootSignature* inID3D12RootSignature,
+	D3D12_SHADER_BYTECODE inVertexShader, D3D12_SHADER_BYTECODE inPixelShader) {
 	D3D12_INPUT_ELEMENT_DESC vertexDataElementDesc[] = {
 		{"POSITION",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,0,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 		{"TEXCOORD",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,sizeof(float) * 4,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 		{"NORMAL",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,sizeof(float) * 8,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0}
 	};
-	
 	D3D12_INPUT_LAYOUT_DESC vertexDataLayoutDesc = {};
 	vertexDataLayoutDesc.NumElements = 3;
 	vertexDataLayoutDesc.pInputElementDescs = vertexDataElementDesc;
@@ -148,7 +163,7 @@ ID3D12PipelineState* CreatePSO(ID3D12RootSignature*inID3D12RootSignature,
 
 	psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-	psoDesc.RasterizerState.DepthClipEnable = true;
+	psoDesc.RasterizerState.DepthClipEnable = TRUE;
 
 	psoDesc.DepthStencilState.DepthEnable = true;
 	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -171,22 +186,7 @@ ID3D12PipelineState* CreatePSO(ID3D12RootSignature*inID3D12RootSignature,
 	if (FAILED(hResult)) {
 		return nullptr;
 	}
-}
-
-
-// 初始化状态转换
-D3D12_RESOURCE_BARRIER InitResourceBarrier(
-	ID3D12Resource* inResource, D3D12_RESOURCE_STATES inPrevState,
-	D3D12_RESOURCE_STATES inNextState) {
-	D3D12_RESOURCE_BARRIER d3d12ResourceBarrier;
-	memset(&d3d12ResourceBarrier, 0, sizeof(d3d12ResourceBarrier));
-	d3d12ResourceBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	d3d12ResourceBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	d3d12ResourceBarrier.Transition.pResource = inResource;
-	d3d12ResourceBarrier.Transition.StateBefore = inPrevState;
-	d3d12ResourceBarrier.Transition.StateAfter = inNextState;
-	d3d12ResourceBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-	return d3d12ResourceBarrier;
+	return d3d12PSO;
 }
 
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
@@ -254,6 +254,7 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	// 创建深度缓冲（这里没有用Depth命名是因为Resource这段代码之后会被抽象）
 	D3D12_HEAP_PROPERTIES d3dHeapProperties = {};
 	d3dHeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+
 	D3D12_RESOURCE_DESC d3d12ResourceDesc = {};
 	d3d12ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	d3d12ResourceDesc.Alignment = 0;
@@ -265,12 +266,13 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	d3d12ResourceDesc.SampleDesc.Count = 1;
 	d3d12ResourceDesc.SampleDesc.Quality = 0;
 	d3d12ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	d3d12ResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL; 
-	
+	d3d12ResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
 	D3D12_CLEAR_VALUE dsClearValue = {};
 	dsClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	dsClearValue.DepthStencil.Depth = 1.0f;
 	dsClearValue.DepthStencil.Stencil = 0;
+
 	gD3D12Device->CreateCommittedResource(&d3dHeapProperties,
 		D3D12_HEAP_FLAG_NONE,
 		&d3d12ResourceDesc,
@@ -283,8 +285,9 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	D3D12_DESCRIPTOR_HEAP_DESC d3dDescriptorHeapDescRTV = {};
 	d3dDescriptorHeapDescRTV.NumDescriptors = 2;
 	d3dDescriptorHeapDescRTV.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	gD3D12Device->CreateDescriptorHeap(&d3dDescriptorHeapDescRTV,IID_PPV_ARGS(&gSwapChainRTVHeap));
+	gD3D12Device->CreateDescriptorHeap(&d3dDescriptorHeapDescRTV, IID_PPV_ARGS(&gSwapChainRTVHeap));
 	gRTVDescriptorSize = gD3D12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
 	D3D12_DESCRIPTOR_HEAP_DESC d3dDescriptorHeapDescDSV = {};
 	d3dDescriptorHeapDescDSV.NumDescriptors = 1;
 	d3dDescriptorHeapDescDSV.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -292,7 +295,7 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	gDSVDescriptorSize = gD3D12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHeapStart = gSwapChainRTVHeap->GetCPUDescriptorHandleForHeapStart();
-	for (UINT i = 0; i < 2; i++) {
+	for (int i = 0; i < 2; i++) {
 		gSwapChain->GetBuffer(i, IID_PPV_ARGS(&gColorRTs[i]));
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvPointer;
 		rtvPointer.ptr = rtvHeapStart.ptr + i * gRTVDescriptorSize;
@@ -301,6 +304,7 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	D3D12_DEPTH_STENCIL_VIEW_DESC d3dDSViewDesc = {};
 	d3dDSViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	d3dDSViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+
 	gD3D12Device->CreateDepthStencilView(gDSRT, &d3dDSViewDesc, gSwapChainDSVHeap->GetCPUDescriptorHandleForHeapStart());
 
 	// 完成渲染初始化（创建命令分配器）
@@ -310,7 +314,7 @@ bool InitD3D12(HWND inHWND, int inWidth, int inHeight) {
 	gD3D12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&gFence));
 	gFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
-	gCurrentRTIndex = gSwapChain->GetCurrentBackBufferIndex();
+
 
 	return true;
 }
@@ -321,7 +325,6 @@ void WaitForCompletionOfCommandList() {
 		gFence->SetEventOnCompletion(gFenceValue, gFenceEvent);
 		WaitForSingleObject(gFenceEvent, INFINITE);
 	}
-	gCurrentRTIndex = gSwapChain->GetCurrentBackBufferIndex();
 }
 
 void EndCommandList() {
@@ -334,6 +337,7 @@ void EndCommandList() {
 }
 
 void BeginRenderTOSwapChain(ID3D12GraphicsCommandList* inCommandList) {
+	gCurrentRTIndex = gSwapChain->GetCurrentBackBufferIndex();
 	D3D12_RESOURCE_BARRIER barrier = InitResourceBarrier(gColorRTs[gCurrentRTIndex], D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	inCommandList->ResourceBarrier(1, &barrier);
 	D3D12_CPU_DESCRIPTOR_HANDLE colorRT,dsv;
@@ -422,6 +426,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		0.0f,0.0f,0.0f,0.0f // normal	
 	};
 
+	ID3D12Resource* vbo = CreateBufferObject(gCommandList,vertexData,sizeof(vertexData),D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	ID3D12RootSignature* rootSignature = InitRootSignature();
+	D3D12_SHADER_BYTECODE vs, ps;
+	CreateShaderFormFile(L"Res/Shader/ndctriangle.hlsl", "MainVS", "vs_5_0", &vs);
+	CreateShaderFormFile(L"Res/Shader/ndctriangle.hlsl", "MainPS", "ps_5_0", &ps);
+	ID3D12PipelineState*pso = CreatePSO(rootSignature, vs, ps);
+
+	EndCommandList();
+	WaitForCompletionOfCommandList();
+	D3D12_VERTEX_BUFFER_VIEW vboBufferView = {};
+	vboBufferView.BufferLocation = vbo->GetGPUVirtualAddress();
+	vboBufferView.SizeInBytes = sizeof(float) * 36;
+	vboBufferView.StrideInBytes = sizeof(float) * 12;
+	D3D12_VERTEX_BUFFER_VIEW vbos[] = {
+		vboBufferView
+	};
+
+
+
 	ShowWindow(hwnd, inShowCmd);
 	UpdateWindow(hwnd);
 
@@ -446,6 +469,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			gCommandList->Reset(gCommandAllocator, nullptr);
 			BeginRenderTOSwapChain(gCommandList);
 			//draw
+			gCommandList->SetPipelineState(pso);
+			gCommandList->SetGraphicsRootSignature(rootSignature);
+			gCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			gCommandList->IASetVertexBuffers(0, 1, vbos);
+			gCommandList->DrawInstanced(3,1,0,0);
 			EndRenderToSwapChain(gCommandList);
 			EndCommandList();
 			gSwapChain->Present(0, 0);

@@ -1,2 +1,2 @@
 学习API笔记仅供参考
-![alt text](image\triangle.png)
+Direct3D12Learning_image_triangle.png at master · RoseLiaGame_Direct3D12Learning.html

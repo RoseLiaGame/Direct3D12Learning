@@ -3,6 +3,7 @@
 #include <dxgi1_4.h>
 #include <d3dcompiler.h>
 #include <stdio.h>
+#include "StaticMeshComponent.h"
 
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
@@ -43,24 +44,26 @@ D3D12_RESOURCE_BARRIER InitResourceBarrier(
 
 // 初始化根签名
 ID3D12RootSignature* InitRootSignature() {
+	//1110001110101111111111111111111111
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-	ID3DBlob* signature = nullptr;
+	ID3DBlob* signature;
 	HRESULT hResult = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, nullptr);
-	ID3D12RootSignature* d3d12RootSignature = nullptr;
+	ID3D12RootSignature* d3d12RootSignature;
 	gD3D12Device->CreateRootSignature(
 		0, signature->GetBufferPointer(), signature->GetBufferSize(),
 		IID_PPV_ARGS(&d3d12RootSignature));
+
 	return d3d12RootSignature;
 }
 
 // 编译shader
-void CreateShaderFormFile(
-	LPCTSTR inShaderFilePath, 
+void CreateShaderFromFile(
+	LPCTSTR inShaderFilePath,
 	const char* inMainFunctionName,
-	const char* inTarget, // "vs_5_0","ps_5_0"
-	D3D12_SHADER_BYTECODE *inShader) {
+	const char* inTarget,//"vs_5_0","ps_5_0","vs_4_0"
+	D3D12_SHADER_BYTECODE* inShader) {
 	ID3DBlob* shaderBuffer = nullptr;
 	ID3DBlob* errorBuffer = nullptr;
 	HRESULT hResult = D3DCompileFromFile(inShaderFilePath, nullptr, nullptr,
@@ -78,8 +81,8 @@ void CreateShaderFormFile(
 // 创建缓冲区对象（初始化VBO）
 ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
 	void* inData, int inDataLen, D3D12_RESOURCE_STATES inFinalResourceState) {
-	D3D12_HEAP_PROPERTIES d3d12HeapProperties = {};
-	d3d12HeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;//GPU本地内存
+	D3D12_HEAP_PROPERTIES d3dHeapProperties = {};
+	d3dHeapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;//gpu
 	D3D12_RESOURCE_DESC d3d12ResourceDesc = {};
 	d3d12ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 	d3d12ResourceDesc.Alignment = 0;
@@ -95,7 +98,7 @@ ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
 
 	ID3D12Resource* bufferObject = nullptr;
 	gD3D12Device->CreateCommittedResource(
-		&d3d12HeapProperties,
+		&d3dHeapProperties,
 		D3D12_HEAP_FLAG_NONE,
 		&d3d12ResourceDesc,
 		D3D12_RESOURCE_STATE_COPY_DEST,
@@ -112,10 +115,10 @@ ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
 	// 3x4x4 = 48bytes分配48个字节，假如GPU每次读取数据室32个字节，48字节要存储2行，每行24字节每行后面有8字节不用（也可能其他处理方法）
 	// 申请临时缓存区
 	ID3D12Resource* tempBufferObject = nullptr;
-	d3d12HeapProperties = {};
-	d3d12HeapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;//CPU GPU可见内存
+	d3dHeapProperties = {};
+	d3dHeapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;//CPU GPU可见内存
 	gD3D12Device->CreateCommittedResource(
-		&d3d12HeapProperties,
+		&d3dHeapProperties,
 		D3D12_HEAP_FLAG_NONE,
 		&d3d12ResourceDesc,
 		D3D12_RESOURCE_STATE_GENERIC_READ,
@@ -143,10 +146,11 @@ ID3D12PipelineState* CreatePSO(ID3D12RootSignature* inID3D12RootSignature,
 	D3D12_INPUT_ELEMENT_DESC vertexDataElementDesc[] = {
 		{"POSITION",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,0,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 		{"TEXCOORD",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,sizeof(float) * 4,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
-		{"NORMAL",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,sizeof(float) * 8,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0}
+		{"NORMAL",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,sizeof(float) * 8,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
+		{"TANGENT",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,sizeof(float) * 12,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0}
 	};
 	D3D12_INPUT_LAYOUT_DESC vertexDataLayoutDesc = {};
-	vertexDataLayoutDesc.NumElements = 3;
+	vertexDataLayoutDesc.NumElements = 4;
 	vertexDataLayoutDesc.pInputElementDescs = vertexDataElementDesc;
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
@@ -411,39 +415,36 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		MessageBox(NULL, L"Create Window Failed!", L"Error", MB_OK | MB_ICONERROR);
 		return -1;
 	}
+
 	// 显示show
 	InitD3D12(hwnd, 1280, 720);
+	StaticMeshComponent staticMeshComponent;
+	staticMeshComponent.SetVertexCount(3);
+	staticMeshComponent.SetVertexPosition(0, -0.5f, -0.5f, 0.5f, 1.0f);
+	staticMeshComponent.SetVertexTexcoord(0, 1.0f, 0.0f, 0.0f, 1.0f);
+	staticMeshComponent.SetVertexPosition(1, 0.0f, 0.5f, 0.5f, 1.0f);
+	staticMeshComponent.SetVertexTexcoord(1, 0.0f, 1.0f, 0.0f, 1.0f);
+	staticMeshComponent.SetVertexPosition(2, 0.5f, -0.5f, 0.5f, 1.0f);
+	staticMeshComponent.SetVertexTexcoord(2, 0.0f, 0.0f, 1.0f, 1.0f);
 
-	float vertexData[] = {
-		-0.5f,-0.5f,0.0f,1.0f, // Position
-		1.0f,0.0f,0.0f,1.0f, // Color
-		0.0f,0.0f,0.0f,0.0f, // normal
-		0.0f,0.5f,0.5f,1.0f, // Position
-		0.0f,1.0f,0.0f,1.0f, // Color
-		0.0f,0.0f,0.0f,0.0f, // normal
-		0.5f,-0.5f,0.5f,1.0f, // Position
-		0.0f,0.0f,1.0f,1.0f, // Color
-		0.0f,0.0f,0.0f,0.0f // normal	
-	};
+	staticMeshComponent.mVBO = CreateBufferObject(gCommandList,
+		staticMeshComponent.mVertexData,
+		sizeof(StaticMeshComponentVertexData) * staticMeshComponent.mVertexCount,
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 
-	ID3D12Resource* vbo = CreateBufferObject(gCommandList,vertexData,sizeof(vertexData),D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+	staticMeshComponent.InitFromFile(gCommandList, "Res/Model/Sphere.staticmesh");
+
 	ID3D12RootSignature* rootSignature = InitRootSignature();
 	D3D12_SHADER_BYTECODE vs, ps;
-	CreateShaderFormFile(L"Res/Shader/ndctriangle.hlsl", "MainVS", "vs_5_0", &vs);
-	CreateShaderFormFile(L"Res/Shader/ndctriangle.hlsl", "MainPS", "ps_5_0", &ps);
-	ID3D12PipelineState*pso = CreatePSO(rootSignature, vs, ps);
-
+	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainVS", "vs_5_0", &vs);
+	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainPS", "ps_5_0", &ps);
+	ID3D12PipelineState* pso = CreatePSO(rootSignature, vs, ps);
 	EndCommandList();
 	WaitForCompletionOfCommandList();
-	D3D12_VERTEX_BUFFER_VIEW vboBufferView = {};
-	vboBufferView.BufferLocation = vbo->GetGPUVirtualAddress();
-	vboBufferView.SizeInBytes = sizeof(float) * 36;
-	vboBufferView.StrideInBytes = sizeof(float) * 12;
+
 	D3D12_VERTEX_BUFFER_VIEW vbos[] = {
-		vboBufferView
+		staticMeshComponent.mVBOView
 	};
-
-
 
 	ShowWindow(hwnd, inShowCmd);
 	UpdateWindow(hwnd);

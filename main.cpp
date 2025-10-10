@@ -483,6 +483,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	staticMeshComponent.SetVertexPosition(2, 0.5f, -0.5f, 0.0f, 1.0f);
 	staticMeshComponent.SetVertexTexcoord(2, 0.0f, 0.0f, 1.0f, 1.0f);
 
+	unsigned int indexes[] = { 0,1,2 };
+	ID3D12Resource*ibo = CreateBufferObject(gCommandList,
+		indexes,
+		sizeof(unsigned int) * 3,
+		D3D12_RESOURCE_STATE_INDEX_BUFFER);
+	D3D12_INDEX_BUFFER_VIEW d3d12IBView;
+	d3d12IBView.BufferLocation = ibo->GetGPUVirtualAddress();
+	d3d12IBView.SizeInBytes = sizeof(unsigned int) * 3;
+	d3d12IBView.Format = DXGI_FORMAT_R32_UINT;
+
 	staticMeshComponent.mVBO = CreateBufferObject(gCommandList,
 		staticMeshComponent.mVertexData,
 		sizeof(StaticMeshComponentVertexData) * staticMeshComponent.mVertexCount,
@@ -549,7 +559,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			gCommandList->SetGraphicsRoot32BitConstants(1, 4, color, 0);
 			gCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			gCommandList->IASetVertexBuffers(0, 1, vbos);
-			gCommandList->DrawInstanced(3,1,0,0);
+
+			gCommandList->IASetIndexBuffer(&d3d12IBView);
+			gCommandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+			//gCommandList->DrawInstanced(3,1,0,0);
+
 			EndRenderToSwapChain(gCommandList);
 			EndCommandList();
 			gSwapChain->Present(0, 0);

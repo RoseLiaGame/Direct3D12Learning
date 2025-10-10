@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
+#include <DirectXMath.h>
 #include <d3dcompiler.h>
 #include <stdio.h>
 #include "StaticMeshComponent.h"
@@ -475,11 +476,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	InitD3D12(hwnd, 1280, 720);
 	StaticMeshComponent staticMeshComponent;
 	staticMeshComponent.SetVertexCount(3);
-	staticMeshComponent.SetVertexPosition(0, -0.5f, -0.5f, 0.5f, 1.0f);
+	staticMeshComponent.SetVertexPosition(0, -0.5f, -0.5f, 0.0f, 1.0f);
 	staticMeshComponent.SetVertexTexcoord(0, 1.0f, 0.0f, 0.0f, 1.0f);
-	staticMeshComponent.SetVertexPosition(1, 0.0f, 0.5f, 0.5f, 1.0f);
+	staticMeshComponent.SetVertexPosition(1, 0.0f, 0.5f, 0.0f, 1.0f);
 	staticMeshComponent.SetVertexTexcoord(1, 0.0f, 1.0f, 0.0f, 1.0f);
-	staticMeshComponent.SetVertexPosition(2, 0.5f, -0.5f, 0.5f, 1.0f);
+	staticMeshComponent.SetVertexPosition(2, 0.5f, -0.5f, 0.0f, 1.0f);
 	staticMeshComponent.SetVertexTexcoord(2, 0.0f, 0.0f, 1.0f, 1.0f);
 
 	staticMeshComponent.mVBO = CreateBufferObject(gCommandList,
@@ -494,15 +495,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainVS", "vs_5_0", &vs);
 	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainPS", "ps_5_0", &ps);
 	ID3D12PipelineState* pso = CreatePSO(rootSignature, vs, ps);
-
 	ID3D12Resource* cb = CreateConstantBufferObject(65536);//1024x64
-	float matrix[] = {
-		1.0f,0.0f,0.0f,0.0f,
-		0.0f,1.0f,0.0f,0.0f,
-		0.0f,0.0f,1.0f,0.0f,
-		0.0f,0.0f,0.0f,1.0f
-	};
-	UpdateConstantBuffer(cb, matrix, sizeof(float) * 16);
+	DirectX::XMMATRIX projectionMatrix = DirectX::XMMatrixPerspectiveFovLH(
+		(45.0f*3.141592f)/180.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
+	DirectX::XMMATRIX viewMatrix = DirectX::XMMatrixIdentity();
+	DirectX::XMMATRIX modelMatrix = DirectX::XMMatrixTranslation(0.0f,0.0f,2.0f);
+	DirectX::XMFLOAT4X4 tempMatrix;
+	float matrices[48];
+	DirectX::XMStoreFloat4x4(&tempMatrix, projectionMatrix);
+	memcpy(matrices, &tempMatrix, sizeof(float) * 16);
+	DirectX::XMStoreFloat4x4(&tempMatrix, viewMatrix);
+	memcpy(matrices + 16, &tempMatrix, sizeof(float) * 16);
+	DirectX::XMStoreFloat4x4(&tempMatrix, modelMatrix);
+	memcpy(matrices + 32, &tempMatrix, sizeof(float) * 16);
+	UpdateConstantBuffer(cb, matrices, sizeof(float) * 48);
 	EndCommandList();
 	WaitForCompletionOfCommandList();
 

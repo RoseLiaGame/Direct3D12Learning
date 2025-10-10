@@ -14,9 +14,17 @@ cbuffer globalConstants:register(b0){
     float4 color;
 };
 
+cbuffer DefaultVertexCB:register(b1){
+    float4x4 ProjectionMatrix;
+    float4x4 ViewMatrix;
+    float4x4 ModelMatrix;
+    float4x4 IT_ModelMatrix;
+    float4x4 ReservedMemory[1020];
+};
+
 VSOut MainVS(VertexData inVertexData){
     VSOut vo;
-    vo.position=inVertexData.position;
+    vo.position=mul(ProjectionMatrix,inVertexData.position);
     vo.color=inVertexData.texcoord+color;
     return vo;
 }

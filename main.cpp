@@ -44,16 +44,25 @@ D3D12_RESOURCE_BARRIER InitResourceBarrier(
 
 // 初始化根签名
 ID3D12RootSignature* InitRootSignature() {
-	//1110001110101111111111111111111111
-	D3D12_ROOT_PARAMETER _0Parameter = {};
-	_0Parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-	_0Parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-	_0Parameter.Constants.RegisterSpace = 0;
-	_0Parameter.Constants.ShaderRegister = 0;
-	_0Parameter.Constants.Num32BitValues = 4;
+	
+	D3D12_ROOT_PARAMETER rootParameters[2];
+
+	// 32bit 1DWORD
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	rootParameters[1].Constants.RegisterSpace = 0;
+	rootParameters[1].Constants.ShaderRegister = 0;
+	rootParameters[1].Constants.Num32BitValues = 4;
+
+	// 64bit 2DWORD
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	rootParameters[0].Descriptor.RegisterSpace = 0;
+	rootParameters[0].Descriptor.ShaderRegister = 1; // cbv 1号寄存器
+
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
-	rootSignatureDesc.NumParameters = 1;
-	rootSignatureDesc.pParameters = &_0Parameter;
+	rootSignatureDesc.NumParameters = _countof(rootParameters);
+	rootSignatureDesc.pParameters = rootParameters;
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	// 64 DWORD 128 WORD 16BIT
@@ -147,6 +156,42 @@ ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
 	inCommandList->CopyBufferRegion(bufferObject, 0, tempBufferObject, 0, subresourceFootprint.Footprint.Width);
 	D3D12_RESOURCE_BARRIER barrier = InitResourceBarrier(bufferObject, D3D12_RESOURCE_STATE_COPY_DEST, inFinalResourceState);
 	inCommandList->ResourceBarrier(1, &barrier);
+	return bufferObject;
+}
+
+void UpdateConstantBuffer(ID3D12Resource* inCB, void* inData, int inDataLen) {
+	D3D12_RANGE d3d12Range = {0};
+	unsigned char* pBuffer = nullptr;
+	inCB->Map(0, &d3d12Range, (void**)&pBuffer);
+	memcpy(pBuffer, inData, inDataLen);
+	inCB->Unmap(0, nullptr);
+}
+
+ID3D12Resource* CreateConstantBufferObject(int inDataLen) {
+	D3D12_HEAP_PROPERTIES d3dHeapProperties = {};
+	d3dHeapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;//CPU GPU
+	D3D12_RESOURCE_DESC d3d12ResourceDesc = {};
+	d3d12ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	d3d12ResourceDesc.Alignment = 0;
+	d3d12ResourceDesc.Width = inDataLen;
+	d3d12ResourceDesc.Height = 1;
+	d3d12ResourceDesc.DepthOrArraySize = 1;
+	d3d12ResourceDesc.MipLevels = 1;
+	d3d12ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	d3d12ResourceDesc.SampleDesc.Count = 1;
+	d3d12ResourceDesc.SampleDesc.Quality = 0;
+	d3d12ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	d3d12ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	ID3D12Resource* bufferObject = nullptr;
+	gD3D12Device->CreateCommittedResource(
+		&d3dHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&d3d12ResourceDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&bufferObject)
+	);
 	return bufferObject;
 }
 
@@ -449,6 +494,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainVS", "vs_5_0", &vs);
 	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainPS", "ps_5_0", &ps);
 	ID3D12PipelineState* pso = CreatePSO(rootSignature, vs, ps);
+
+	ID3D12Resource* cb = CreateConstantBufferObject(65536);//1024x64
+	float matrix[] = {
+		1.0f,0.0f,0.0f,0.0f,
+		0.0f,1.0f,0.0f,0.0f,
+		0.0f,0.0f,1.0f,0.0f,
+		0.0f,0.0f,0.0f,1.0f
+	};
+	UpdateConstantBuffer(cb, matrix, sizeof(float) * 16);
 	EndCommandList();
 	WaitForCompletionOfCommandList();
 
@@ -485,7 +539,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			//draw
 			gCommandList->SetPipelineState(pso);
 			gCommandList->SetGraphicsRootSignature(rootSignature);
-			gCommandList->SetGraphicsRoot32BitConstants(0, 4, color, 0);
+			gCommandList->SetGraphicsRootConstantBufferView(0, cb->GetGPUVirtualAddress());
+			gCommandList->SetGraphicsRoot32BitConstants(1, 4, color, 0);
 			gCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			gCommandList->IASetVertexBuffers(0, 1, vbos);
 			gCommandList->DrawInstanced(3,1,0,0);

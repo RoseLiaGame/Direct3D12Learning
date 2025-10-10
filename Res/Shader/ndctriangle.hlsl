@@ -10,10 +10,14 @@ struct VSOut{
     float4 color:TEXCOORD0;
 };
 
+cbuffer globalConstants:register(b0){
+    float4 color;
+};
+
 VSOut MainVS(VertexData inVertexData){
     VSOut vo;
     vo.position=inVertexData.position;
-    vo.color=inVertexData.texcoord;
+    vo.color=inVertexData.texcoord+color;
     return vo;
 }
 

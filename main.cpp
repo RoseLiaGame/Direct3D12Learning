@@ -45,8 +45,18 @@ D3D12_RESOURCE_BARRIER InitResourceBarrier(
 // 初始化根签名
 ID3D12RootSignature* InitRootSignature() {
 	//1110001110101111111111111111111111
+	D3D12_ROOT_PARAMETER _0Parameter = {};
+	_0Parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	_0Parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	_0Parameter.Constants.RegisterSpace = 0;
+	_0Parameter.Constants.ShaderRegister = 0;
+	_0Parameter.Constants.Num32BitValues = 4;
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+	rootSignatureDesc.NumParameters = 1;
+	rootSignatureDesc.pParameters = &_0Parameter;
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	// 64 DWORD 128 WORD 16BIT
 
 	ID3DBlob* signature;
 	HRESULT hResult = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, nullptr);
@@ -449,6 +459,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ShowWindow(hwnd, inShowCmd);
 	UpdateWindow(hwnd);
 
+	float color[] = { 0.5f,0.5f,0.5f,1.0f };
+
+
 	MSG msg;
 	while (true) {
 		// 可以把内存置于0
@@ -472,6 +485,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			//draw
 			gCommandList->SetPipelineState(pso);
 			gCommandList->SetGraphicsRootSignature(rootSignature);
+			gCommandList->SetGraphicsRoot32BitConstants(0, 4, color, 0);
 			gCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			gCommandList->IASetVertexBuffers(0, 1, vbos);
 			gCommandList->DrawInstanced(3,1,0,0);

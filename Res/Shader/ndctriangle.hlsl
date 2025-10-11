@@ -8,12 +8,13 @@ struct VertexData{
 struct VSOut{
     float4 position:SV_POSITION;
     float4 normal:NORMAL;
+    float4 texcoord:TEXCOORD0;
+    float4 positionWS:TEXCOORD1;
 };
 
 static const float PI=3.141592f;
-
 cbuffer globalConstants:register(b0){
-    float4 normal:NORMAL;
+    float4 color;
 };
 
 cbuffer DefaultVertexCB:register(b1){
@@ -28,8 +29,10 @@ VSOut MainVS(VertexData inVertexData){
     VSOut vo;
     float4 positionWS = mul(ModelMatrix,inVertexData.position);
     float4 positionVS = mul(ViewMatrix,positionWS);
-    vo.position=mul(ProjectionMatrix,positionVS);
-    vo.normal=mul(IT_ModelMatrix,inVertexData.normal);
+    vo.position = mul(ProjectionMatrix,positionVS);
+    vo.normal = mul(IT_ModelMatrix,inVertexData.normal);
+    vo.positionWS = positionWS;
+    vo.texcoord = inVertexData.texcoord;
     return vo;
 }
 
@@ -42,11 +45,22 @@ float4 MainPS(VSOut inPSInput):SV_TARGET{
     theta+=0.5f;//0~1
     float ambientStrength = 0.2f;
     float3 ambientColor = lerp(bottomColor,topColor,theta)* ambientStrength;
-    float3 L = normalize(float3(1.0f,1.0f,-1.0f));
+
+    float3 L = normalize(float3(1.0f,1.0f,-1.0f)); 
     float diffuseIntensity = max(0.0f,dot(N,L));
     float3 diffuseLightColor = float3(0.1f,0.4f,0.6f);
     float3 diffuseColor = diffuseLightColor*diffuseIntensity;
+
     float3 specularColor = float3(0.0f,0.0f,0.0f);
+    if(diffuseIntensity>0.0f){
+        float3 cameraPositionWS = float3(0.0f,0.0f,0.0f);
+        float3 V = normalize(cameraPositionWS.xyz - inPSInput.positionWS.xyz);
+        float3 R = normalize(reflect(-L,N));
+        float specularIntensity = pow(max(0.0f,dot(V,R)),32.0f);
+        specularColor = float3(1.0f,1.0f,1.0f)*specularIntensity;
+    }
+
+
     float3 sufaceColor = ambientColor + diffuseColor + specularColor;
     return float4(sufaceColor,1.0f);
 }

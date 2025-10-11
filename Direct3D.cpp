@@ -330,7 +330,7 @@ void BeginRenderTOSwapChain(ID3D12GraphicsCommandList* inCommandList) {
 	D3D12_RECT scissorRect = { 0,0,1280,720 };
 	inCommandList->RSSetViewports(1, &viewport);
 	inCommandList->RSSetScissorRects(1, &scissorRect);
-	const float clearColor[] = { 0.847f,0.718f,0.867f,1.0f };
+	const float clearColor[] = { 0.0f,0.0f,0.0f,1.0f };
 	inCommandList->ClearRenderTargetView(colorRT, clearColor, 0, nullptr);
 	inCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0.0f, nullptr);
 }

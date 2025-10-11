@@ -26,5 +26,6 @@ public:
 	void SetVertexNormal(int inIndex, float inX, float inY, float inZ, float inW = 1.0f);
 	void SetVertexTangent(int inIndex, float inX, float inY, float inZ, float inW = 1.0f);
 	void InitFromFile(ID3D12GraphicsCommandList* inCommandList, const char* inFilePath);
+	void Render(ID3D12GraphicsCommandList* inCommandList);
 };
 

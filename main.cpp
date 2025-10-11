@@ -90,11 +90,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	UpdateConstantBuffer(cb, matrices, sizeof(float) * 48);
 	EndCommandList();
 	WaitForCompletionOfCommandList();
-
-	D3D12_VERTEX_BUFFER_VIEW vbos[] = {
-		staticMeshComponent.mVBOView
-	};
-
 	ShowWindow(hwnd, inShowCmd);
 	UpdateWindow(hwnd);
 
@@ -127,13 +122,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			commandList->SetGraphicsRootConstantBufferView(0, cb->GetGPUVirtualAddress());
 			commandList->SetGraphicsRoot32BitConstants(1, 4, color, 0);
 			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			commandList->IASetVertexBuffers(0, 1, vbos);
-
-			for (auto iter = staticMeshComponent.mSubMeshes.begin(); 
-				iter != staticMeshComponent.mSubMeshes.end(); iter++) {
-				commandList->IASetIndexBuffer(&iter->second->mIBView);
-				commandList->DrawIndexedInstanced(iter->second->mIndexCount, 1, 0, 0, 0);
-			}	
+			staticMeshComponent.Render(commandList);
+			
 			EndRenderToSwapChain(commandList);
 			EndCommandList();
 			SwapD3D12Buffers();

@@ -14,7 +14,7 @@ struct VSOut{
 
 static const float PI=3.141592f;
 cbuffer globalConstants:register(b0){
-    float4 color;
+    float4 misc;
 };
 
 cbuffer DefaultVertexCB:register(b1){
@@ -27,7 +27,9 @@ cbuffer DefaultVertexCB:register(b1){
 
 VSOut MainVS(VertexData inVertexData){
     VSOut vo;
-    float4 positionWS = mul(ModelMatrix,inVertexData.position);
+    vo.normal = mul(IT_ModelMatrix,inVertexData.normal);
+    float3 positionMS = inVertexData.position.xyz + vo.normal * sin(misc.x);
+    float4 positionWS = mul(ModelMatrix,float4(positionMS,1.0));
     float4 positionVS = mul(ViewMatrix,positionWS);
     vo.position = mul(ProjectionMatrix,positionVS);
     vo.normal = mul(IT_ModelMatrix,inVertexData.normal);
@@ -59,7 +61,6 @@ float4 MainPS(VSOut inPSInput):SV_TARGET{
         float specularIntensity = pow(max(0.0f,dot(V,R)),32.0f);
         specularColor = float3(1.0f,1.0f,1.0f)*specularIntensity;
     }
-
 
     float3 sufaceColor = ambientColor + diffuseColor + specularColor;
     return float4(sufaceColor,1.0f);

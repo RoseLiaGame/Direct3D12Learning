@@ -133,7 +133,7 @@ ID3D12PipelineState* CreatePSO(ID3D12RootSignature* inID3D12RootSignature,
 	psoDesc.SampleDesc.Quality = 0;
 	psoDesc.SampleMask = 0xffffffff;
 	psoDesc.InputLayout = vertexDataLayoutDesc;
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
 
 	psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;

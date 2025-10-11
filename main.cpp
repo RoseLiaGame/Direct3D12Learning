@@ -5,6 +5,7 @@
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3dcompiler.lib")
+#pragma comment(lib,"winmm.lib")
 
 LPCTSTR gWindowsClassName = L"RoseGame";//ASCII
 
@@ -100,13 +101,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	UpdateConstantBuffer(cb, matrices, sizeof(float) * 64);
 	EndCommandList();
 	WaitForCompletionOfCommandList();
+
 	ShowWindow(hwnd, inShowCmd);
 	UpdateWindow(hwnd);
-
 	float color[] = { 0.5f,0.5f,0.5f,1.0f };
-
-
 	MSG msg;
+	DWORD last_time = timeGetTime();
+	DWORD appStartTime = last_time;
 	while (true) {
 		// 可以把内存置于0
 		ZeroMemory(&msg, sizeof(MSG));
@@ -123,6 +124,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		} else {
 			// rendering
 			WaitForCompletionOfCommandList();
+
+			DWORD current_time = timeGetTime(); // ms
+			DWORD frameTime = current_time - last_time;
+			DWORD timeSinceAppStartMS = current_time - appStartTime;
+			last_time = current_time;
+			float frameTimeInSecond = float(frameTime) / 1000.0f; // second
+			float timeSinceAppStartInSecond = float(timeSinceAppStartMS) / 1000.0f;
+			color[0] = timeSinceAppStartInSecond;
+
 			commandAllocator->Reset();
 			commandList->Reset(commandAllocator, nullptr);
 			BeginRenderTOSwapChain(commandList);
@@ -131,8 +141,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			commandList->SetGraphicsRootSignature(rootSignature);
 			commandList->SetGraphicsRootConstantBufferView(0, cb->GetGPUVirtualAddress());
 			commandList->SetGraphicsRoot32BitConstants(1, 4, color, 0);
-			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			staticMeshComponent.Render(commandList);
+			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
+			D3D12_VERTEX_BUFFER_VIEW vbos[] = {
+				staticMeshComponent.mVBOView
+			};
+			commandList->IASetVertexBuffers(0, 1, vbos);
+			commandList->DrawInstanced(staticMeshComponent.mVertexCount, 1, 0, 0);
+
+			//staticMeshComponent.Render(commandList);
 			
 			EndRenderToSwapChain(commandList);
 			EndCommandList();

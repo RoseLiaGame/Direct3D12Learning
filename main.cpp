@@ -79,15 +79,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		(45.0f*3.141592f)/180.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);
 	DirectX::XMMATRIX viewMatrix = DirectX::XMMatrixIdentity();
 	DirectX::XMMATRIX modelMatrix = DirectX::XMMatrixTranslation(0.0f,0.0f,5.0f);
+	modelMatrix *= DirectX::XMMatrixRotationZ(90.0f*3.141592f/180.0f);
 	DirectX::XMFLOAT4X4 tempMatrix;
-	float matrices[48];
+	float matrices[64];
 	DirectX::XMStoreFloat4x4(&tempMatrix, projectionMatrix);
 	memcpy(matrices, &tempMatrix, sizeof(float) * 16);
 	DirectX::XMStoreFloat4x4(&tempMatrix, viewMatrix);
 	memcpy(matrices + 16, &tempMatrix, sizeof(float) * 16);
 	DirectX::XMStoreFloat4x4(&tempMatrix, modelMatrix);
 	memcpy(matrices + 32, &tempMatrix, sizeof(float) * 16);
-	UpdateConstantBuffer(cb, matrices, sizeof(float) * 48);
+	DirectX::XMVECTOR determinant;
+	DirectX::XMMATRIX inverseModelMatrix = DirectX::XMMatrixInverse(&determinant,modelMatrix);
+	if (DirectX::XMVectorGetX(determinant) != 0.0f) {
+		DirectX::XMMATRIX normalMatrix = DirectX::XMMatrixTranspose(inverseModelMatrix);
+
+		DirectX::XMStoreFloat4x4(&tempMatrix, modelMatrix);
+		memcpy(matrices + 48, &tempMatrix, sizeof(float) * 16);
+	}
+
+	UpdateConstantBuffer(cb, matrices, sizeof(float) * 64);
 	EndCommandList();
 	WaitForCompletionOfCommandList();
 	ShowWindow(hwnd, inShowCmd);

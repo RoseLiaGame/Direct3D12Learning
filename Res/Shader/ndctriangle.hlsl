@@ -27,9 +27,9 @@ cbuffer DefaultVertexCB:register(b1){
 VSOut MainVS(VertexData inVertexData){
     VSOut vo;
     float4 positionWS = mul(ModelMatrix,inVertexData.position);
-    float4 positionvs = mul(ViewMatrix,positionWS);
-    vo.position=mul(ProjectionMatrix,positionvs);
-    vo.normal=inVertexData.normal;
+    float4 positionVS = mul(ViewMatrix,positionWS);
+    vo.position=mul(ProjectionMatrix,positionVS);
+    vo.normal=mul(IT_ModelMatrix,inVertexData.normal);
     return vo;
 }
 

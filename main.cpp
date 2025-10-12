@@ -17,6 +17,7 @@ LRESULT CALLBACK WindowProc(HWND inHWND, UINT inMSG, WPARAM inWParam, LPARAM inL
 	}
 	return DefWindowProc(inHWND, inMSG, inWParam, inLParam);
 }
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int inShowCmd){
 	// ×¢²áregiter
 	WNDCLASSEX wndClassEx;
@@ -71,10 +72,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	staticMeshComponent.InitFromFile(commandList, "Res/Model/Sphere.lhsm");
 
 	ID3D12RootSignature* rootSignature = InitRootSignature();
-	D3D12_SHADER_BYTECODE vs, ps;
-	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainVS", "vs_5_0", &vs);
-	CreateShaderFromFile(L"Res/Shader/ndctriangle.hlsl", "MainPS", "ps_5_0", &ps);
-	ID3D12PipelineState* pso = CreatePSO(rootSignature, vs, ps);
+	D3D12_SHADER_BYTECODE vs, gs, ps;
+	CreateShaderFromFile(L"Res/Shader/gs.hlsl", "MainVS", "vs_5_0", &vs);
+	CreateShaderFromFile(L"Res/Shader/gs.hlsl", "MainGS", "gs_5_0", &gs);
+	CreateShaderFromFile(L"Res/Shader/gs.hlsl", "MainPS", "ps_5_0", &ps);
+	ID3D12PipelineState* pso = CreatePSO(rootSignature, vs, ps, gs);
 	ID3D12Resource* cb = CreateConstantBufferObject(65536);//1024x64
 	DirectX::XMMATRIX projectionMatrix = DirectX::XMMatrixPerspectiveFovLH(
 		(45.0f*3.141592f)/180.0f, 1280.0f / 720.0f, 0.1f, 1000.0f);

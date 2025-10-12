@@ -112,7 +112,8 @@ ID3D12Resource* CreateConstantBufferObject(int inDataLen) {
 
 // 创建管线状态对象（PSO初始化）
 ID3D12PipelineState* CreatePSO(ID3D12RootSignature* inID3D12RootSignature,
-	D3D12_SHADER_BYTECODE inVertexShader, D3D12_SHADER_BYTECODE inPixelShader) {
+	D3D12_SHADER_BYTECODE inVertexShader, D3D12_SHADER_BYTECODE inPixelShader,
+	D3D12_SHADER_BYTECODE inGSShader) {
 	D3D12_INPUT_ELEMENT_DESC vertexDataElementDesc[] = {
 		{"POSITION",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,0,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
 		{"TEXCOORD",0,DXGI_FORMAT_R32G32B32A32_FLOAT,0,sizeof(float) * 4,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0},
@@ -126,6 +127,7 @@ ID3D12PipelineState* CreatePSO(ID3D12RootSignature* inID3D12RootSignature,
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 	psoDesc.pRootSignature = inID3D12RootSignature;
 	psoDesc.VS = inVertexShader;
+	psoDesc.GS = inGSShader;
 	psoDesc.PS = inPixelShader;
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
 	psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;

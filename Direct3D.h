@@ -26,7 +26,8 @@ ID3D12Resource* CreateBufferObject(ID3D12GraphicsCommandList* inCommandList,
 	void* inData, int inDataLen, D3D12_RESOURCE_STATES inFinalResourceState);
 
 ID3D12PipelineState* CreatePSO(ID3D12RootSignature* inID3D12RootSignature,
-	D3D12_SHADER_BYTECODE inVertexShader, D3D12_SHADER_BYTECODE inPixelShader);
+	D3D12_SHADER_BYTECODE inVertexShader, D3D12_SHADER_BYTECODE inPixelShader,
+	D3D12_SHADER_BYTECODE inGSShader);
 
 bool InitD3D12(HWND inHWND, int inWidth, int inHeight);
 
